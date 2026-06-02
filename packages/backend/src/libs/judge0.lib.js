@@ -19,6 +19,10 @@ export const pollBatchResults = async (tokens)=>{
             params:{
                 tokens:tokens.join(","),
                 base64_encoded:false,
+            },
+            headers: {
+                'X-RapidAPI-Key': process.env.JUDGE0_API_KEY,
+                'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com'
             }
         })
 
@@ -36,8 +40,12 @@ export const pollBatchResults = async (tokens)=>{
 export const submitBatch = async (submissions)=>{
     const {data} = await axios.post(`${process.env.JUDGE0_API_URL}/submissions/batch?base64_encoded=false`,{
         submissions
+    }, {
+        headers: {
+            'X-RapidAPI-Key': process.env.JUDGE0_API_KEY,
+            'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com'
+        }
     })
-
 
     console.log("Submission Results: ", data)
 

@@ -9,13 +9,13 @@ import executionRoute from "./routes/executeCode.routes.js";
 import submissionRoutes from "./routes/submission.routes.js";
 import playlistRoutes from "./routes/playlist.routes.js";
 
-dotenv.config();
+dotenv.config({ path: new URL('../.env', import.meta.url) });
 
 const app = express();
 
 app.use(
     cors({
-      origin: "http://localhost:5174",
+      origin: "http://localhost:5173",
       credentials: true,
     })
   );

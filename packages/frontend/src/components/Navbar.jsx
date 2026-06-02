@@ -24,18 +24,19 @@ const Navbar = ()=>{
         </Link>
 
         {/* User Profile and Dropdown */}
-        <div className="flex items-center gap-8">
+        <div className="flex items-center">
           <div className="dropdown dropdown-end">
-            <label tabIndex={0} className="btn btn-ghost btn-circle avatar flex flex-row ">
-              <div className="w-10 rounded-full ">
-                <img
-                  src={
-                    authUser?.image ||
-                    "https://avatar.iran.liara.run/public/boy"
-                  }
-                  alt="User Avatar"
-                  className="object-cover"
-                />
+            <label tabIndex={0} className="btn btn-ghost btn-circle avatar flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden">
+                {authUser?.image ? (
+                  <img
+                    src={authUser.image}
+                    alt="User Avatar"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User className="w-6 h-6 text-primary" />
+                )}
               </div>
            
             </label>
