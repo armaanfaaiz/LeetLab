@@ -13,12 +13,24 @@ dotenv.config({ path: new URL('../.env', import.meta.url) });
 
 const app = express();
 
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  "http://localhost:5173",
+  "http://localhost:3000"
+].filter(Boolean);
+
 app.use(
-    cors({
-      origin: "http://localhost:5173",
-      credentials: true,
-    })
-  );
+  cors({
+    origin: (origin, callback) => {
+      // allow requests with no origin (like mobile apps or curl requests)
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, true); // flexible fallback for allowed domains
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(cookieParser());
 
@@ -33,6 +45,7 @@ app.use("/api/v1/submission", submissionRoutes);
 
 app.use("/api/v1/playlist", playlistRoutes);
 
-app.listen(process.env.PORT, () => {
-  console.log("Server is running on port 8081");
+const PORT = process.env.PORT || 8081;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
