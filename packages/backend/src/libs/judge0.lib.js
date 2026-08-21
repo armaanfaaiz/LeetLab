@@ -1,4 +1,4 @@
-git add -Aimport axios from "axios"
+import axios from "axios"
 
 export const getJudge0LanguageId = (language)=>{
     const languageMap = {
