@@ -1,22 +1,37 @@
-function getLanguageName(languageId) {
-    const LANGUAGE_NAMES = {
-      74: "TypeScript",
-      63: "JavaScript",
-      71: "Python",
-      62: "Java",
-    };
-    return LANGUAGE_NAMES[languageId] || "Unknown";
-  }
+export function getLanguageName(languageId) {
+  const numericId = Number(languageId);
+  const LANGUAGE_NAMES = {
+    54: "C++",
+    62: "Java",
+    71: "Python",
+    63: "JavaScript",
+    74: "TypeScript",
+  };
+  return LANGUAGE_NAMES[numericId] || "Unknown";
+}
 
-  export { getLanguageName };
+export function getLanguageId(language) {
+  if (!language) return 63;
+  const clean = language.toString().trim().toUpperCase();
+  const languageMap = {
+    "CPP": 54,
+    "C++": 54,
+    "JAVA": 62,
+    "PYTHON": 71,
+    "JAVASCRIPT": 63,
+    "JS": 63,
+    "TYPESCRIPT": 74,
+    "TS": 74,
+  };
+  return languageMap[clean] || 63;
+}
 
-
-  export function getLanguageId(language) {
-    const languageMap = {
-      "PYTHON": 71,
-      "JAVASCRIPT": 63,
-      "JAVA": 62,
-      "TypeScript": 74,
-    };
-    return languageMap[language.toUpperCase()];
-  }
+export function getMonacoLanguage(language) {
+  if (!language) return "javascript";
+  const clean = language.toString().trim().toLowerCase();
+  if (clean === "c++" || clean === "cpp") return "cpp";
+  if (clean === "java") return "java";
+  if (clean === "python" || clean === "py") return "python";
+  if (clean === "typescript" || clean === "ts") return "typescript";
+  return "javascript";
+}

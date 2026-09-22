@@ -7,6 +7,12 @@ export const getAllSubmission = async(req , res)=>{
         const submissions = await db.submission.findMany({
             where:{
                 userId:userId
+            },
+            orderBy: {
+                createdAt: "desc"
+            },
+            include: {
+                testCases: true
             }
         })
 
@@ -31,6 +37,12 @@ export const getSubmissionsForProblem = async (req , res)=>{
             where:{
                 userId:userId,
                 problemId:problemId
+            },
+            orderBy: {
+                createdAt: "desc"
+            },
+            include: {
+                testCases: true
             }
         })
 

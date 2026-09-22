@@ -4,6 +4,99 @@ import {
   pollBatchResults,
   submitBatch,
 } from "../libs/judge0.lib.js";
+import { prepareExecutableCode } from "../libs/boilerplate.lib.js";
+
+const normalizeOutput = (str) => {
+  if (str === null || str === undefined) return "";
+  return String(str).trim().replace(/\r\n/g, "\n");
+};
+
+export const runCode = async (req, res) => {
+  try {
+    const { source_code, language_id, stdin, expected_outputs, problemId } = req.body;
+
+    if (!Array.isArray(stdin) || stdin.length === 0) {
+      return res.status(400).json({ error: "Invalid or Missing test cases" });
+    }
+
+    let problem = null;
+    if (problemId) {
+      problem = await db.problem.findUnique({ where: { id: problemId } });
+    }
+
+    const languageName = getLanguageName(language_id);
+    const executableCode = prepareExecutableCode(source_code, languageName, problem);
+
+    const submissions = stdin.map((input, i) => ({
+      source_code: executableCode,
+      language_id,
+      stdin: input,
+      expected_output: expected_outputs && expected_outputs[i] ? expected_outputs[i] : undefined,
+    }));
+
+    const submitResponse = await submitBatch(submissions);
+    const tokens = submitResponse.map((r) => r.token);
+    const results = await pollBatchResults(tokens);
+
+    let allPassed = true;
+    let overallStatus = "Accepted";
+
+    const detailedResults = results.map((result, i) => {
+      const stdout = normalizeOutput(result.stdout);
+      const expected = expected_outputs ? normalizeOutput(expected_outputs[i]) : "";
+      const passed = expected_outputs ? stdout === expected : true;
+
+      if (!passed) allPassed = false;
+
+      let statusDesc = result.status?.description || "Unknown";
+      if (result.compile_output) {
+        overallStatus = "Compilation Error";
+        statusDesc = "Compilation Error";
+      } else if (result.stderr && result.status?.id !== 3) {
+        overallStatus = "Runtime Error";
+        statusDesc = "Runtime Error";
+      } else if (!passed && overallStatus === "Accepted") {
+        overallStatus = "Wrong Answer";
+      }
+
+      return {
+        testCase: i + 1,
+        passed,
+        stdout,
+        expected,
+        stdin: stdin[i],
+        stderr: result.stderr || null,
+        compile_output: result.compile_output || null,
+        status: statusDesc,
+        memory: result.memory ? `${result.memory} KB` : undefined,
+        time: result.time ? `${result.time} s` : undefined,
+      };
+    });
+
+    if (detailedResults.some(r => r.compile_output)) {
+      overallStatus = "Compilation Error";
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Code run complete",
+      allPassed,
+      overallStatus,
+      results: detailedResults,
+      submission: {
+        status: overallStatus,
+        language: languageName,
+        sourceCode: source_code,
+        testCases: detailedResults,
+        memory: JSON.stringify(detailedResults.map(r => r.memory)),
+        time: JSON.stringify(detailedResults.map(r => r.time)),
+      }
+    });
+  } catch (error) {
+    console.error("Error running code:", error);
+    res.status(500).json({ error: error.message || "Failed to run code" });
+  }
+};
 
 export const executeCode = async (req, res) => {
   try {
@@ -11,8 +104,6 @@ export const executeCode = async (req, res) => {
       req.body;
 
     const userId = req.user.id;
-
-    // Validate test cases
 
     if (
       !Array.isArray(stdin) ||
@@ -23,54 +114,63 @@ export const executeCode = async (req, res) => {
       return res.status(400).json({ error: "Invalid or Missing test cases" });
     }
 
-    // 2. Prepare each test cases for judge0 batch submission
-    const submissions = stdin.map((input) => ({
-      source_code,
+    let problem = null;
+    if (problemId) {
+      problem = await db.problem.findUnique({ where: { id: problemId } });
+    }
+
+    const languageName = getLanguageName(language_id);
+    const executableCode = prepareExecutableCode(source_code, languageName, problem);
+
+    const submissions = stdin.map((input, i) => ({
+      source_code: executableCode,
       language_id,
       stdin: input,
+      expected_output: expected_outputs[i],
     }));
 
-    // 3. Send batch of submissions to judge0
     const submitResponse = await submitBatch(submissions);
-
-    const tokens = submitResponse.map((res) => res.token);
-
-    // 4. Poll judge0 for results of all submitted test cases
+    const tokens = submitResponse.map((r) => r.token);
     const results = await pollBatchResults(tokens);
 
-    console.log("Result-------------");
-    console.log(results);
-
-    //  Analyze test case results
     let allPassed = true;
+    let overallStatus = "Accepted";
+
     const detailedResults = results.map((result, i) => {
-      const stdout = result.stdout?.trim();
-      const expected_output = expected_outputs[i]?.trim();
-      const passed = stdout === expected_output;
+      const stdout = normalizeOutput(result.stdout);
+      const expected = normalizeOutput(expected_outputs[i]);
+      const passed = stdout === expected;
 
       if (!passed) allPassed = false;
+
+      let statusDesc = result.status?.description || "Unknown";
+      if (result.compile_output) {
+        overallStatus = "Compilation Error";
+        statusDesc = "Compilation Error";
+      } else if (result.stderr && result.status?.id !== 3) {
+        overallStatus = "Runtime Error";
+        statusDesc = "Runtime Error";
+      } else if (!passed && overallStatus === "Accepted") {
+        overallStatus = "Wrong Answer";
+      }
 
       return {
         testCase: i + 1,
         passed,
         stdout,
-        expected: expected_output,
+        expected,
+        stdin: stdin[i],
         stderr: result.stderr || null,
         compile_output: result.compile_output || null,
-        status: result.status.description,
+        status: statusDesc,
         memory: result.memory ? `${result.memory} KB` : undefined,
         time: result.time ? `${result.time} s` : undefined,
       };
-
-      // console.log(`Testcase #${i+1}`);
-      // console.log(`Input for testcase #${i+1}: ${stdin[i]}`)
-      // console.log(`Expected Output for testcase #${i+1}: ${expected_output}`)
-      // console.log(`Actual output for testcase #${i+1}: ${stdout}`)
-
-      // console.log(`Matched testcase #${i+1}: ${passed}`)
     });
 
-    console.log(detailedResults);
+    if (detailedResults.some(r => r.compile_output)) {
+      overallStatus = "Compilation Error";
+    }
 
     // store submission summary
     const submission = await db.submission.create({
@@ -78,7 +178,7 @@ export const executeCode = async (req, res) => {
         userId,
         problemId,
         sourceCode: source_code,
-        language: getLanguageName(language_id),
+        language: languageName,
         stdin: stdin.join("\n"),
         stdout: JSON.stringify(detailedResults.map((r) => r.stdout)),
         stderr: detailedResults.some((r) => r.stderr)
@@ -87,7 +187,7 @@ export const executeCode = async (req, res) => {
         compileOutput: detailedResults.some((r) => r.compile_output)
           ? JSON.stringify(detailedResults.map((r) => r.compile_output))
           : null,
-        status: allPassed ? "Accepted" : "Wrong Answer",
+        status: overallStatus,
         memory: detailedResults.some((r) => r.memory)
           ? JSON.stringify(detailedResults.map((r) => r.memory))
           : null,
@@ -97,8 +197,7 @@ export const executeCode = async (req, res) => {
       },
     });
 
-    // If All passed = true mark problem as solved for the current user
-    if (allPassed) {
+    if (allPassed && overallStatus === "Accepted") {
       await db.problemSolved.upsert({
         where: {
           userId_problemId: {
@@ -113,7 +212,6 @@ export const executeCode = async (req, res) => {
         },
       });
     }
-    // 8. Save individual test case results  using detailedResult
 
     const testCaseResults = detailedResults.map((result) => ({
       submissionId: submission.id,
@@ -140,14 +238,15 @@ export const executeCode = async (req, res) => {
         testCases: true,
       },
     });
-    //
+
     res.status(200).json({
       success: true,
-      message: "Code Executed! Successfully!",
+      message: allPassed ? "Congratulations! Solution Accepted!" : "Submission Evaluated",
       submission: submissionWithTestCase,
+      allPassed,
     });
   } catch (error) {
-    console.error("Error executing code:", error.message);
-    res.status(500).json({ error: "Failed to execute code" });
+    console.error("Error executing code:", error);
+    res.status(500).json({ error: error.message || "Failed to execute code" });
   }
 };

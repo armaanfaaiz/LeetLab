@@ -35,6 +35,11 @@ const problemSchema = z.object({
     )
     .min(1, "At least one test case is required"),
   examples: z.object({
+    CPP: z.object({
+      input: z.string().min(1, "Input is required"),
+      output: z.string().min(1, "Output is required"),
+      explanation: z.string().optional(),
+    }).optional(),
     JAVASCRIPT: z.object({
       input: z.string().min(1, "Input is required"),
       output: z.string().min(1, "Output is required"),
@@ -52,11 +57,13 @@ const problemSchema = z.object({
     }),
   }),
   codeSnippets: z.object({
+    CPP: z.string().optional(),
     JAVASCRIPT: z.string().min(1, "JavaScript code snippet is required"),
     PYTHON: z.string().min(1, "Python code snippet is required"),
     JAVA: z.string().min(1, "Java solution is required"),
   }),
   referenceSolutions: z.object({
+    CPP: z.string().optional(),
     JAVASCRIPT: z.string().min(1, "JavaScript solution is required"),
     PYTHON: z.string().min(1, "Python solution is required"),
     JAVA: z.string().min(1, "Java solution is required"),
@@ -91,6 +98,12 @@ const sampledpData = {
     },
   ],
   examples: {
+    CPP: {
+      input: "n = 2",
+      output: "2",
+      explanation:
+        "There are two ways to climb to the top:\n1. 1 step + 1 step\n2. 2 steps",
+    },
     JAVASCRIPT: {
       input: "n = 2",
       output: "2",
@@ -111,6 +124,13 @@ const sampledpData = {
     },
   },
   codeSnippets: {
+    CPP: `class Solution {
+public:
+    int climbStairs(int n) {
+        // Write your solution here
+        return 0;
+    }
+};`,
     JAVASCRIPT: `/**
 * @param {number} n
 * @return {number}
@@ -174,6 +194,19 @@ class Main {
 }`,
   },
   referenceSolutions: {
+    CPP: `class Solution {
+public:
+    int climbStairs(int n) {
+        if (n <= 2) return n;
+        int a = 1, b = 2;
+        for (int i = 3; i <= n; i++) {
+            int c = a + b;
+            a = b;
+            b = c;
+        }
+        return b;
+    }
+};`,
     JAVASCRIPT: `/**
 * @param {number} n
 * @return {number}
@@ -521,19 +554,22 @@ const CreateProblemForm = () => {
                  testcases: [{ input: "", output: "" }],
       tags: [""],
       examples: {
+        CPP: { input: "", output: "", explanation: "" },
         JAVASCRIPT: { input: "", output: "", explanation: "" },
         PYTHON: { input: "", output: "", explanation: "" },
         JAVA: { input: "", output: "", explanation: "" },
       },
       codeSnippets: {
+        CPP: "class Solution {\npublic:\n    // Write your code here\n};",
         JAVASCRIPT: "function solution() {\n  // Write your code here\n}",
-        PYTHON: "def solution():\n    # Write your code here\n    pass",
-        JAVA: "public class Solution {\n    public static void main(String[] args) {\n        // Write your code here\n    }\n}",
+        PYTHON: "class Solution:\n    def solution(self):\n        pass",
+        JAVA: "class Solution {\n    // Write your code here\n}",
       },
       referenceSolutions: {
-        JAVASCRIPT: "// Add your reference solution here",
-        PYTHON: "# Add your reference solution here",
-        JAVA: "// Add your reference solution here",
+        CPP: "// Add your C++ reference solution here",
+        JAVASCRIPT: "// Add your JavaScript reference solution here",
+        PYTHON: "# Add your Python reference solution here",
+        JAVA: "// Add your Java reference solution here",
       },
             }
         }
@@ -829,7 +865,7 @@ const CreateProblemForm = () => {
 
             {/* Code Editor Sections */}
             <div className="space-y-8">
-              {["JAVASCRIPT", "PYTHON", "JAVA"].map((language) => (
+              {["CPP", "JAVA", "PYTHON", "JAVASCRIPT"].map((language) => (
                 <div
                   key={language}
                   className="card bg-base-200 p-4 md:p-6 shadow-md"

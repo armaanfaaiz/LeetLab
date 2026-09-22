@@ -4,6 +4,7 @@ import {
   pollBatchResults,
   submitBatch,
 } from "../libs/judge0.lib.js";
+import { prepareExecutableCode, cleanCodeSnippetsForProblem } from "../libs/boilerplate.lib.js";
 
 export const createProblem = async (req, res) => {
   const {
@@ -30,9 +31,13 @@ export const createProblem = async (req, res) => {
           .json({ error: `Language ${language} is not supported` });
       }
 
-      //
+      const executableCode = prepareExecutableCode(solutionCode, language, {
+        title,
+        codeSnippets,
+      });
+
       const submissions = testcases.map(({ input, output }) => ({
-        source_code: solutionCode,
+        source_code: executableCode,
         language_id: languageId,
         stdin: input,
         expected_output: output,
@@ -47,12 +52,12 @@ export const createProblem = async (req, res) => {
       for (let i = 0; i < results.length; i++) {
         const result = results[i];
         console.log("Result-----", result);
-        // console.log(
-        //   `Testcase ${i + 1} and Language ${language} ----- result ${JSON.stringify(result.status.description)}`
-        // );
-        if (result.status.id !== 3) {
+        const stdout = result.stdout ? result.stdout.trim() : "";
+        const expected = testcases[i].output ? testcases[i].output.trim() : "";
+        
+        if (result.status.id !== 3 && stdout !== expected) {
           return res.status(400).json({
-            error: `Testcase ${i + 1} failed for language ${language}`,
+            error: `Testcase ${i + 1} failed for language ${language}: ${result.compile_output || result.stderr || result.status.description}`,
           });
         }
       }
@@ -106,10 +111,12 @@ export const getAllProblems = async (req, res) => {
       });
     }
 
+    const cleanedProblems = problems.map(cleanCodeSnippetsForProblem);
+
     res.status(200).json({
       sucess: true,
       message: "Message Fetched Successfully",
-      problems,
+      problems: cleanedProblems,
     });
   } catch (error) {
     console.log(error);
@@ -133,10 +140,12 @@ export const getProblemById = async (req, res) => {
       return res.status(404).json({ error: "Problem not found." });
     }
 
+    const cleanedProblem = cleanCodeSnippetsForProblem(problem);
+
     return res.status(200).json({
       sucess: true,
       message: "Message Created Successfully",
-      problem,
+      problem: cleanedProblem,
     });
   } catch (error) {
     console.log(error);
