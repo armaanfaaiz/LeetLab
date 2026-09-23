@@ -8,7 +8,12 @@ import { prepareExecutableCode } from "../libs/boilerplate.lib.js";
 
 const normalizeOutput = (str) => {
   if (str === null || str === undefined) return "";
-  return String(str).trim().replace(/\r\n/g, "\n");
+  let clean = String(str).trim().replace(/\r\n/g, "\n");
+  // Normalize array output spacing: e.g. "[0, 1]" -> "[0,1]"
+  clean = clean.replace(/\[\s*([^\]]*?)\s*\]/g, (_, inner) => {
+    return '[' + inner.split(',').map((s) => s.trim()).join(',') + ']';
+  });
+  return clean;
 };
 
 export const runCode = async (req, res) => {

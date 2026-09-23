@@ -53,7 +53,9 @@ export function detectFunctionDetails(code, language) {
   if (pyMatch && !RESERVED_KEYWORDS.has(pyMatch[1])) {
     funcName = pyMatch[1];
     const params = pyMatch[2].split(',').filter(p => p.trim()).length;
-    return { funcName, paramCount: params || 1, hasVectorParam: false };
+    hasVectorParam = /List\[|\[\s*\]|nums|arr/i.test(pyMatch[2]);
+    if (funcName.toLowerCase() === 'twosum') hasVectorParam = true;
+    return { funcName, paramCount: params || 1, hasVectorParam };
   }
 
   // JS: var climbStairs = function(...) or function climbStairs(...)
@@ -63,7 +65,9 @@ export function detectFunctionDetails(code, language) {
     if (name && !RESERVED_KEYWORDS.has(name)) {
       funcName = name;
       const params = (jsMatch[3] || "").split(',').filter(p => p.trim()).length;
-      return { funcName, paramCount: params || 1, hasVectorParam: false };
+      hasVectorParam = /nums|arr|array/i.test(jsMatch[3] || "");
+      if (funcName.toLowerCase() === 'twosum') hasVectorParam = true;
+      return { funcName, paramCount: params || 1, hasVectorParam };
     }
   }
 
@@ -77,9 +81,15 @@ export function detectFunctionDetails(code, language) {
       const paramStr = match[2] || "";
       const params = paramStr.split(',').filter(p => p.trim());
       paramCount = params.length || 1;
-      hasVectorParam = /vector\s*</i.test(paramStr);
-      return { funcName, paramCount, hasVectorParam };
+      hasVectorParam = /vector\s*<|\[\]/i.test(paramStr);
+      if (funcName.toLowerCase() === 'twosum') hasVectorParam = true;
+      return { funcName, paramCount: params.length || 1, hasVectorParam };
     }
+  }
+
+  if (funcName.toLowerCase() === 'twosum') {
+    hasVectorParam = true;
+    paramCount = 2;
   }
 
   return { funcName, paramCount, hasVectorParam };
@@ -156,8 +166,45 @@ export function generateDefaultDriver(problem, language, userCode = '') {
   const details = detectFunctionDetails(userCode, lang);
   const funcName = details.funcName;
   const paramCount = details.paramCount;
+  const isTwoSum = funcName.toLowerCase() === 'twosum' || (paramCount === 2 && details.hasVectorParam);
 
   if (lang === 'CPP') {
+    if (isTwoSum) {
+      return `
+vector<int> parseVector(string s) {
+    vector<int> res;
+    for (char &c : s) {
+        if (c == '[' || c == ']' || c == ',') c = ' ';
+    }
+    stringstream ss(s);
+    int x;
+    while (ss >> x) res.push_back(x);
+    return res;
+}
+
+int main() {
+    ios_base::sync_with_stdio(false);
+    cin.tie(NULL);
+    cout << boolalpha;
+    Solution sol;
+    string line;
+    while (getline(cin, line)) {
+        if (line.empty()) continue;
+        vector<int> nums = parseVector(line);
+        int target = 0;
+        if (cin >> target) {
+            string dummy;
+            getline(cin, dummy);
+            vector<int> ans = sol.${funcName}(nums, target);
+            if (ans.size() == 2 && ans[0] > ans[1]) swap(ans[0], ans[1]);
+            cout << ans << endl;
+        }
+    }
+    return 0;
+}
+`;
+    }
+
     if (paramCount === 2) {
       return `
 int main() {
@@ -173,6 +220,7 @@ int main() {
 }
 `;
     }
+
     return `
 int main() {
     ios_base::sync_with_stdio(false);
@@ -189,6 +237,43 @@ int main() {
   }
 
   if (lang === 'JAVA') {
+    if (isTwoSum) {
+      return `
+public class Main {
+    static int[] parseArray(String s) {
+        s = s.replace("[", "").replace("]", "").replace(",", " ").trim();
+        if (s.isEmpty()) return new int[0];
+        String[] parts = s.split("\\\\s+");
+        int[] res = new int[parts.length];
+        for (int i = 0; i < parts.length; i++) {
+            res[i] = Integer.parseInt(parts[i]);
+        }
+        return res;
+    }
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        Solution sol = new Solution();
+        while (sc.hasNextLine()) {
+            String line = sc.nextLine().trim();
+            if (line.isEmpty()) continue;
+            int[] nums = parseArray(line);
+            if (sc.hasNextInt()) {
+                int target = sc.nextInt();
+                if (sc.hasNextLine()) sc.nextLine();
+                int[] ans = sol.${funcName}(nums, target);
+                if (ans != null && ans.length == 2 && ans[0] > ans[1]) {
+                    int tmp = ans[0]; ans[0] = ans[1]; ans[1] = tmp;
+                }
+                System.out.println(Arrays.toString(ans).replace(" ", ""));
+            }
+        }
+        sc.close();
+    }
+}
+`;
+    }
+
     if (paramCount === 2) {
       return `
 public class Main {
@@ -212,6 +297,7 @@ public class Main {
 }
 `;
     }
+
     return `
 public class Main {
     public static void main(String[] args) {
@@ -237,6 +323,36 @@ public class Main {
   }
 
   if (lang === 'PYTHON') {
+    if (isTwoSum) {
+      return `
+if __name__ == "__main__":
+    import sys, json
+    lines = [l.strip() for l in sys.stdin.read().splitlines() if l.strip()]
+    if lines:
+        runner = None
+        try:
+            sol = Solution()
+            runner = getattr(sol, '${funcName}', None)
+        except Exception:
+            pass
+        if runner is None:
+            runner = globals().get('${funcName}')
+        if runner:
+            for i in range(0, len(lines) - 1, 2):
+                raw_arr = lines[i]
+                raw_target = lines[i+1]
+                if raw_arr.startswith('['):
+                    nums = json.loads(raw_arr)
+                else:
+                    nums = [int(x) for x in raw_arr.replace(',', ' ').split()]
+                target = int(raw_target)
+                ans = runner(nums, target)
+                if isinstance(ans, (list, tuple)) and len(ans) == 2 and ans[0] > ans[1]:
+                    ans = [ans[1], ans[0]]
+                print(json.dumps(ans).replace(" ", ""))
+`;
+    }
+
     if (paramCount === 2) {
       return `
 if __name__ == "__main__":
@@ -260,6 +376,7 @@ if __name__ == "__main__":
                     pass
 `;
     }
+
     return `
 if __name__ == "__main__":
     import sys
@@ -284,6 +401,36 @@ if __name__ == "__main__":
   }
 
   if (lang === 'JAVASCRIPT' || lang === 'TYPESCRIPT') {
+    if (isTwoSum) {
+      return `
+const fs = require('fs');
+const rawInput = fs.readFileSync(0, 'utf-8').trim();
+if (rawInput) {
+    const lines = rawInput.split(String.fromCharCode(10)).map(l => l.trim()).filter(Boolean);
+    for (let i = 0; i + 1 < lines.length; i += 2) {
+        const rawArr = lines[i];
+        const target = parseInt(lines[i + 1], 10);
+        const nums = rawArr.startsWith('[') 
+            ? JSON.parse(rawArr) 
+            : rawArr.replace(/,/g, ' ').split(' ').filter(Boolean).map(Number);
+        let ans;
+        if (typeof ${funcName} === 'function') {
+            ans = ${funcName}(nums, target);
+        } else if (typeof Solution !== 'undefined') {
+            const sol = new Solution();
+            ans = sol.${funcName}(nums, target);
+        }
+        if (ans !== undefined) {
+            if (Array.isArray(ans) && ans.length === 2 && ans[0] > ans[1]) {
+                ans = [ans[1], ans[0]];
+            }
+            console.log(JSON.stringify(ans).split(' ').join(''));
+        }
+    }
+}
+`;
+    }
+
     if (paramCount === 2) {
       return `
 const fs = require('fs');
@@ -307,6 +454,7 @@ if (rawInput) {
 }
 `;
     }
+
     return `
 const fs = require('fs');
 const rawInput = fs.readFileSync(0, 'utf-8').trim();
@@ -427,6 +575,9 @@ ostream& operator<<(ostream& os, const vector<T>& v) {
   }
 
   if (lang === 'PYTHON') {
+    if (!code.includes('from typing import') && !code.includes('import typing')) {
+      code = 'from typing import *\n\n' + code;
+    }
     return `${code}\n\n${driver}`;
   }
 
@@ -459,26 +610,39 @@ export function cleanCodeSnippetsForProblem(problem) {
     }
   }
 
-  if (!cleaned.CPP) {
-    const title = problem.title || "";
-    let func = "int climbStairs(int n)";
-    if (title.toLowerCase().includes("two sum")) func = "vector<int> twoSum(vector<int>& nums, int target)";
-    else if (title.toLowerCase().includes("add two")) func = "int addTwoNumbers(int a, int b)";
+  const title = (problem.title || "").toLowerCase();
+  const isTwoSum = title.includes("two sum");
 
-    const cppSnippet = `class Solution {\npublic:\n    ${func} {\n        // Write your solution here\n        return 0;\n    }\n};`;
+  if (!cleaned.CPP) {
+    const cppSnippet = isTwoSum
+      ? `class Solution {\npublic:\n    vector<int> twoSum(vector<int>& nums, int target) {\n        // Write your solution here\n        return {};\n    }\n};`
+      : `class Solution {\npublic:\n    int climbStairs(int n) {\n        // Write your solution here\n        return 0;\n    }\n};`;
     cleaned.CPP = cppSnippet;
     cleaned.cpp = cppSnippet;
   }
 
   if (!cleaned.JAVA) {
-    const title = problem.title || "";
-    let func = "public int climbStairs(int n)";
-    if (title.toLowerCase().includes("two sum")) func = "public int[] twoSum(int[] nums, int target)";
-    else if (title.toLowerCase().includes("add two")) func = "public int addTwoNumbers(int a, int b)";
-
-    const javaSnippet = `class Solution {\n    ${func} {\n        // Write your solution here\n        return 0;\n    }\n};`;
+    const javaSnippet = isTwoSum
+      ? `class Solution {\n    public int[] twoSum(int[] nums, int target) {\n        // Write your solution here\n        return new int[]{};\n    }\n}`
+      : `class Solution {\n    public int climbStairs(int n) {\n        // Write your solution here\n        return 0;\n    }\n}`;
     cleaned.JAVA = javaSnippet;
     cleaned.java = javaSnippet;
+  }
+
+  if (!cleaned.PYTHON) {
+    const pySnippet = isTwoSum
+      ? `class Solution:\n    def twoSum(self, nums: List[int], target: int) -> List[int]:\n        # Write your solution here\n        return []`
+      : `class Solution:\n    def climbStairs(self, n: int) -> int:\n        # Write your solution here\n        return 0`;
+    cleaned.PYTHON = pySnippet;
+    cleaned.python = pySnippet;
+  }
+
+  if (!cleaned.JAVASCRIPT) {
+    const jsSnippet = isTwoSum
+      ? `/**\n * @param {number[]} nums\n * @param {number} target\n * @return {number[]}\n */\nvar twoSum = function(nums, target) {\n    // Write your solution here\n};`
+      : `/**\n * @param {number} n\n * @return {number}\n */\nvar climbStairs = function(n) {\n    // Write your solution here\n};`;
+    cleaned.JAVASCRIPT = jsSnippet;
+    cleaned.javascript = jsSnippet;
   }
 
   return {

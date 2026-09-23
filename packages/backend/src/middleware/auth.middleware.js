@@ -3,7 +3,7 @@ import {db} from "../libs/db.js"
 
 export const authMiddleware = async (req , res , next)=>{
     try {
-        const token = req.cookies.jwt;
+        const token = req.cookies?.jwt || (req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.split(" ")[1] : null);
 
         if(!token){
             return res.status(401).json({
